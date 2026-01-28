@@ -293,15 +293,24 @@ body {
 }
 
 .titles-container {
-    display: none;
+    display: block;
+    /* Sempre visível - sem accordion */
     margin-top: var(--spacing-sm);
     padding-top: var(--spacing-sm);
     border-top: 1px solid var(--border);
-    animation: fadeIn var(--transition-fast);
 }
 
-.card.expanded .titles-container {
-    display: block;
+/* Ocultar ícone de accordion já que não há mais expansão */
+.accordion-icon {
+    display: none;
+}
+
+/* Hide empty container to prevent unwanted whitespace */
+.titles-container:empty {
+    display: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
 }
 
 /* ============================================
@@ -798,14 +807,12 @@ body {
 
 /* Separator Item */
 .separator-item {
-    height: 1rem;
+    height: 1px;
     width: 100%;
     margin: var(--spacing-sm) 0;
     pointer-events: none;
-    /* optional divider line
-    border-bottom: 1px dashed var(--border);
-    margin-bottom: var(--spacing-lg);
-    */
+    border-top: 1px dashed var(--border);
+    opacity: 0.6;
 }
 
 /* ============================================

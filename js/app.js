@@ -18,20 +18,8 @@ async function loadData() {
         const response = await fetch('data/shin_college_data.json');
         data = await response.json();
 
-        // Sort themes numerically within each volume
-        data.forEach(volume => {
-            if (volume.themes) {
-                volume.themes.sort((a, b) => {
-                    const numA = extractThemeNumber(a.theme);
-                    const numB = extractThemeNumber(b.theme);
-                    if (numA !== null && numB !== null) {
-                        return numA - numB;
-                    }
-                    // Fallback to string comparison if numbers are missing
-                    return a.theme.localeCompare(b.theme);
-                });
-            }
-        });
+
+
 
         initializeApp();
     } catch (error) {
@@ -358,22 +346,42 @@ function showThemes(volumeIndex) {
     document.getElementById('backToThemes').style.display = 'none';
     document.getElementById('backToVolumes').style.display = 'inline-flex';
 
+    // Ocultar botão de toggle já que não há mais accordion
+    const toggleBtn = document.getElementById('closeAllThemesBtn');
+    if (toggleBtn) toggleBtn.style.display = 'none';
+
     const container = document.getElementById('themesList');
     container.innerHTML = volume.themes.map((theme, themeIndex) => {
-        const titleCount = theme.titles.length;
+        // Filtrar títulos válidos
+        const validTitles = filterValidTitles(theme.titles);
+        const groupedTitles = groupNumberedTitles(validTitles);
+
+        // Renderizar títulos diretamente
+        const titlesHTML = groupedTitles.map((title, index) => {
+            if (title.title === '---') {
+                return `<div class="separator-item"></div>`;
+            }
+            return `
+            <div class="title-item" onclick="event.stopPropagation(); showContentFromAccordion('${title.title.replace(/'/g, "\\'")}')">
+                <div class="title-item-header">
+                    <div class="title-item-name">${title.title}</div>
+                    <div class="title-item-badge">${title.publications.length} 文献</div>
+                </div>
+            </div>
+            `;
+        }).join('');
 
         return `
-            <div id="theme-card-${themeIndex}" class="card" onclick="toggleTheme(${volumeIndex}, ${themeIndex})">
+            <div id="theme-card-${themeIndex}" class="card">
                 <div class="card-header-content">
                     <div class="card-info">
                         <div class="card-title">${theme.theme}</div>
                         <div class="card-subtitle">
-                            ${titleCount} トピック
+                            ${groupedTitles.filter(t => t.title !== '---').length} トピック
                         </div>
                     </div>
-                    <div class="accordion-icon">▼</div>
                 </div>
-                <div id="theme-titles-${themeIndex}" class="titles-container"></div>
+                <div id="theme-titles-${themeIndex}" class="titles-container">${titlesHTML}</div>
             </div>
         `;
     }).join('');
@@ -382,8 +390,6 @@ function showThemes(volumeIndex) {
         { text: '巻一覧', action: showVolumes },
         { text: formatVolumeName(volume.volume), active: true }
     ]);
-
-    updateToggleAllButtonState();
 }
 
 function toggleTheme(volumeIndex, themeIndex) {
@@ -397,9 +403,15 @@ function toggleTheme(volumeIndex, themeIndex) {
     if (isExpanded) {
         card.classList.remove('expanded');
     } else {
-        card.classList.add('expanded');
         if (container.innerHTML.trim() === '') {
             renderTitlesInTheme(container, theme.titles);
+        }
+
+        // Only expand if there is content to show
+        if (container.children.length > 0) {
+            card.classList.add('expanded');
+        } else {
+            console.log('No visible titles for this theme');
         }
     }
     updateToggleAllButtonState();
@@ -422,12 +434,18 @@ function toggleAllThemes() {
         const volume = data[data.findIndex(v => v.volume === document.getElementById('volumeTitle').textContent)] || data[currentVolume];
 
         cards.forEach((card, index) => {
-            card.classList.add('expanded');
             const titlesContainer = card.querySelector('.titles-container');
+
+            // Render content if needed
             if (titlesContainer && titlesContainer.innerHTML.trim() === '') {
                 // Determine index match. themesList maps directly to volume.themes
                 const theme = volume.themes[index];
                 renderTitlesInTheme(titlesContainer, theme.titles);
+            }
+
+            // Only expand if not empty
+            if (titlesContainer && titlesContainer.children.length > 0) {
+                card.classList.add('expanded');
             }
         });
         btn.textContent = '全て閉じる';
@@ -449,8 +467,29 @@ function updateToggleAllButtonState() {
     }
 }
 
+
+function filterValidTitles(titles) {
+    // 1. Filtrar títulos sem publicações (mantendo separadores por enquanto)
+    const filtered = titles.filter(title =>
+        title.title === '---' || (title.publications && title.publications.length > 0)
+    );
+
+    // 2. Verificar se restou algum título real (não-separador)
+    const hasRealContent = filtered.some(title => title.title !== '---');
+
+    // Se só tem separadores, retorna vazio para evitar renderizar apenas linhas
+    if (!hasRealContent) {
+        return [];
+    }
+
+    return filtered;
+}
+
 function renderTitlesInTheme(container, titles) {
-    const groupedTitles = groupNumberedTitles(titles);
+    // Filtrar títulos vazios e separadores órfãos
+    const titlesWithContent = filterValidTitles(titles);
+
+    const groupedTitles = groupNumberedTitles(titlesWithContent);
 
     container.innerHTML = groupedTitles.map((title, index) => {
         if (title.title === '---') {
@@ -506,8 +545,9 @@ function showTitles(volumeIndex, themeIndex) {
     // Hide statistics on titles view
     document.getElementById('statsFooter').style.display = 'none';
 
-    // Agrupa títulos numerados
-    const groupedTitles = groupNumberedTitles(theme.titles);
+    // Filtra títulos vazios e separadores órfãos, depois agrupa
+    const titlesWithContent = filterValidTitles(theme.titles);
+    const groupedTitles = groupNumberedTitles(titlesWithContent);
     window.currentGroupedTitles = groupedTitles;
 
     document.getElementById('themeTitle').textContent = theme.theme;
@@ -753,6 +793,11 @@ function groupNumberedTitles(titles) {
     const grouped = new Map();
 
     titles.forEach((title, index) => {
+        // Skip empty titles (without publications), except separators
+        if (title.title !== '---' && (!title.publications || title.publications.length === 0)) {
+            return;
+        }
+
         // Special handling for separators to prevent merging
         if (title.title === '---') {
             grouped.set(`___SEPARATOR___${index}`, {
