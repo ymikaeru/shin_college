@@ -240,7 +240,8 @@ body {
 
 .card.expanded {
     justify-content: flex-start;
-    height: auto;
+    height: fit-content;
+    min-height: 0;
 }
 
 .card:hover {
@@ -292,15 +293,24 @@ body {
 }
 
 .titles-container {
-    display: none;
-    margin-top: var(--spacing-md);
-    padding-top: var(--spacing-md);
+    display: block;
+    /* Sempre visível - sem accordion */
+    margin-top: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
     border-top: 1px solid var(--border);
-    animation: fadeIn var(--transition-fast);
 }
 
-.card.expanded .titles-container {
-    display: block;
+/* Ocultar ícone de accordion já que não há mais expansão */
+.accordion-icon {
+    display: none;
+}
+
+/* Hide empty container to prevent unwanted whitespace */
+.titles-container:empty {
+    display: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
 }
 
 /* ============================================
@@ -797,14 +807,12 @@ body {
 
 /* Separator Item */
 .separator-item {
-    height: 1rem;
+    height: 1px;
     width: 100%;
     margin: var(--spacing-sm) 0;
     pointer-events: none;
-    /* optional divider line
-    border-bottom: 1px dashed var(--border);
-    margin-bottom: var(--spacing-lg);
-    */
+    border-top: 1px dashed var(--border);
+    opacity: 0.6;
 }
 
 /* ============================================
@@ -1263,4 +1271,34 @@ body {
 .nav-footer-close:hover {
     transform: scale(1.1);
     background: rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   SEARCH HIGHLIGHT
+   ============================================ */
+.search-highlight {
+    animation: highlightPulse 2s ease-in-out;
+    background: linear-gradient(90deg,
+            rgba(46, 91, 255, 0.1),
+            rgba(46, 91, 255, 0.2),
+            rgba(46, 91, 255, 0.1)) !important;
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px rgba(46, 91, 255, 0.1);
+}
+
+@keyframes highlightPulse {
+
+    0%,
+    100% {
+        background: var(--bg-card);
+        box-shadow: 0 0 0 0 rgba(46, 91, 255, 0);
+    }
+
+    50% {
+        background: linear-gradient(90deg,
+                rgba(46, 91, 255, 0.15),
+                rgba(46, 91, 255, 0.25),
+                rgba(46, 91, 255, 0.15));
+        box-shadow: 0 0 0 4px rgba(46, 91, 255, 0.2);
+    }
 }
