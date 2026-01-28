@@ -9,21 +9,25 @@
 
 :root {
     /* Colors - Nordic Minimalist Palette */
-    --primary: #2E5BFF;
-    --primary-light: #5C7CFF;
-    --primary-dark: #1E3FCC;
+    --primary: #4A5568;
+    /* Slate gray/blue accent, simpler than bright blue */
+    --primary-light: #718096;
+    --primary-dark: #2D3748;
 
-    --bg-primary: #FAFAFA;
-    --bg-secondary: #FFFFFF;
-    --bg-tertiary: #F5F5F5;
+    --bg-primary: #FFFFFF;
+    /* Cleaner, pure white background */
+    --bg-secondary: #F7FAFC;
+    /* Very subtle light gray */
+    --bg-tertiary: #EDF2F7;
     --bg-card: #FFFFFF;
 
-    --text-primary: #1A1A1A;
-    --text-secondary: #666666;
-    --text-tertiary: #999999;
+    --text-primary: #2D3748;
+    /* Dark slate for softer contrast than pure black */
+    --text-secondary: #4A5568;
+    --text-tertiary: #A0AEC0;
 
-    --border: #E5E5E5;
-    --border-hover: #CCCCCC;
+    --border: #E2E8F0;
+    --border-hover: #CBD5E0;
 
     /* Spacing - More generous for mobile */
     --spacing-xs: 8px;
@@ -72,11 +76,12 @@ body {
    HEADER
    ============================================ */
 .header {
-    background: var(--bg-card);
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-lg);
-    margin-bottom: var(--spacing-lg);
-    border: 1px solid var(--border);
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: var(--spacing-lg) 0;
+    margin-bottom: var(--spacing-md);
+    border-bottom: 1px solid var(--border);
 }
 
 .header-content {
@@ -229,25 +234,20 @@ body {
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: var(--spacing-md);
-    cursor: pointer;
+    cursor: default;
+    /* Changed from pointer since it's not clickable */
     transition: all var(--transition-base);
     position: relative;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-height: 100px;
+    min-height: auto;
+    /* Removed fixed height constraints */
 }
 
-.card.expanded {
-    justify-content: flex-start;
-    height: fit-content;
-    min-height: 0;
-}
+/* Removed .card.expanded style as expansion is no longer dynamic */
 
-.card:hover {
-    border-color: var(--border-hover);
-    background: var(--bg-tertiary);
-}
+/* Removed .card:hover style to remove interaction hint */
 
 .card-title {
     font-size: 1.0625rem;

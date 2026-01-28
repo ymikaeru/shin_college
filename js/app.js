@@ -507,14 +507,24 @@ function renderTitlesInTheme(container, titles) {
 }
 
 function showContentFromAccordion(titleString) {
-    if (currentVolume === null) return;
+    if (currentVolume === null) {
+        console.error("Current volume is null");
+        return;
+    }
     const volume = data[currentVolume];
+    console.log(`Attempting to find title: "${titleString}" in volume: ${volume.volume}`);
 
     for (let t = 0; t < volume.themes.length; t++) {
         const theme = volume.themes[t];
         const grouped = groupNumberedTitles(theme.titles);
         const found = grouped.find(g => g.title === titleString);
+
         if (found) {
+            console.log(`Title found in theme: ${theme.theme}`);
+
+            // Fix for navigation arrows: Set the current context
+            window.currentGroupedTitles = grouped;
+
             const titleWithContext = {
                 ...found,
                 pathInfo: {
@@ -528,6 +538,7 @@ function showContentFromAccordion(titleString) {
             return;
         }
     }
+    console.warn(`Title "${titleString}" not found in any theme of volume ${volume.volume}`);
 }
 
 
@@ -1148,18 +1159,93 @@ function saveHistory(titleData) {
     // Remove if exists to move to top
     history = history.filter(item => item.title !== titleData.title);
 
-    // Store
-    history.unshift({
+    // Store minimal data to save space
+    // We only need indices to reconstruct the object later
+    const historyItem = {
         title: titleData.title,
         volume: titleData.pathInfo ? titleData.pathInfo.volume : '',
         theme: titleData.pathInfo ? titleData.pathInfo.theme : '',
-        data: titleData
-    });
+        // Store indices if available, otherwise we rely on search later
+        vIdx: titleData.pathInfo ? titleData.pathInfo.volumeIndex : -1,
+        tIdx: titleData.pathInfo ? titleData.pathInfo.themeIndex : -1
+    };
+
+    history.unshift(historyItem);
 
     if (history.length > MAX_HISTORY) history.pop();
 
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    } catch (e) {
+        console.error("Storage quota exceeded", e);
+        // Fallback: Clear history and retry with just the current item
+        // This handles cases where legacy data is filling the storage
+        try {
+            // Keep only the current item which is minimal
+            const minimalHistory = [historyItem];
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(minimalHistory));
+            console.log("History reset to minimal due to quota.");
+        } catch (e2) {
+            console.error("Critical storage failure", e2);
+        }
+    }
     renderHistory();
+}
+
+function openHistoryItem(index) {
+    let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    const item = history[index];
+    if (item) {
+        // Reconstruct data from indices if valid
+        if (item.vIdx >= 0 && item.tIdx >= 0 && data[item.vIdx]) {
+            const vol = data[item.vIdx];
+            const theme = vol.themes[item.tIdx];
+            if (theme) {
+                // We need to find the specific title object within the theme
+                // Since we didn't store title index, we search by title string
+                const grouped = groupNumberedTitles(theme.titles);
+                const found = grouped.find(g => g.title === item.title);
+
+                if (found) {
+                    const titleWithContext = {
+                        ...found,
+                        pathInfo: {
+                            volume: formatVolumeName(vol.volume),
+                            theme: theme.theme,
+                            volumeIndex: item.vIdx,
+                            themeIndex: item.tIdx
+                        }
+                    };
+                    showContent(titleWithContext);
+                    return;
+                }
+            }
+        }
+
+        // Fallback: search by title string if indices fail or are missing
+        const results = searchContent(item.title);
+        // Look for exact match
+        const exactMatch = results.find(r => r.title.title === item.title);
+        if (exactMatch) {
+            openSearchResultByIndex(0); // Not ideal but works for now, or better:
+            // We can manually call showContent like we do in openSearchResultByIndex
+            const volumeIndex = data.findIndex(v => v.volume === exactMatch.volume);
+            const themeIndex = volumeIndex >= 0 ? data[volumeIndex].themes.findIndex(t => t.theme === exactMatch.theme) : -1;
+
+            const titleWithContext = {
+                ...exactMatch.title,
+                pathInfo: {
+                    volume: formatVolumeName(exactMatch.volume),
+                    theme: exactMatch.theme,
+                    volumeIndex: volumeIndex,
+                    themeIndex: themeIndex
+                }
+            };
+            showContent(titleWithContext);
+        } else {
+            alert("This content could not be found.");
+        }
+    }
 }
 
 function clearHistory() {
@@ -1272,9 +1358,29 @@ function updateModalFooter(titleData) {
     const prevBtn = document.getElementById('prevTitleBtn');
     const nextBtn = document.getElementById('nextTitleBtn');
 
+    // Check for valid items in each direction
+    let hasPrev = false;
+    let hasNext = false;
+
+    // Check Previous
+    for (let i = currentNavContext.index - 1; i >= 0; i--) {
+        if (currentNavContext.list[i].title !== '---') {
+            hasPrev = true;
+            break;
+        }
+    }
+
+    // Check Next
+    for (let i = currentNavContext.index + 1; i < currentNavContext.list.length; i++) {
+        if (currentNavContext.list[i].title !== '---') {
+            hasNext = true;
+            break;
+        }
+    }
+
     if (currentNavContext.index !== -1) {
-        prevBtn.disabled = currentNavContext.index <= 0;
-        nextBtn.disabled = currentNavContext.index >= currentNavContext.list.length - 1;
+        prevBtn.disabled = !hasPrev;
+        nextBtn.disabled = !hasNext;
     } else {
         prevBtn.disabled = true;
         nextBtn.disabled = true;
@@ -1286,7 +1392,16 @@ function updateModalFooter(titleData) {
 function navigateModal(direction) {
     if (!currentNavContext.list || currentNavContext.index === -1) return;
 
-    const newIndex = currentNavContext.index + direction;
+    let newIndex = currentNavContext.index + direction;
+
+    // Loop to skip separators ('---')
+    while (newIndex >= 0 && newIndex < currentNavContext.list.length) {
+        if (currentNavContext.list[newIndex].title !== '---') {
+            break;
+        }
+        newIndex += direction;
+    }
+
     if (newIndex < 0 || newIndex >= currentNavContext.list.length) return;
 
     let nextTitle = currentNavContext.list[newIndex];
