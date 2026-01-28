@@ -598,7 +598,7 @@ body {
 }
 
 .publication-content {
-    font-size: 1rem;
+    font-size: 1em;
     line-height: 1.8;
     color: var(--text-secondary);
     white-space: pre-wrap;
