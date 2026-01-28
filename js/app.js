@@ -493,7 +493,23 @@ function showTitles(volumeIndex, themeIndex) {
 
 function openContentByIndex(index) {
     if (window.currentGroupedTitles && window.currentGroupedTitles[index]) {
-        showContent(window.currentGroupedTitles[index]);
+        const titleData = window.currentGroupedTitles[index];
+
+        // Inject path info if missing and we have context
+        if (!titleData.pathInfo && typeof currentVolume === 'number' && typeof currentTheme === 'number') {
+            const vol = data[currentVolume];
+            const thm = vol ? vol.themes[currentTheme] : null;
+            if (vol && thm) {
+                titleData.pathInfo = {
+                    volume: formatVolumeName(vol.volume),
+                    theme: thm.theme,
+                    volumeIndex: currentVolume,
+                    themeIndex: currentTheme
+                };
+            }
+        }
+
+        showContent(titleData);
     }
 }
 
@@ -544,15 +560,27 @@ function showContent(title) {
     });
 
     // Gera o HTML da navegação
-    const navHTML = `
-        <div class="modal-nav">
-            ${navigationItems.map(item => `
-                <button class="modal-nav-item" onclick="document.getElementById('${item.id}').scrollIntoView({ behavior: 'smooth' })">
-                    ${parseMarkdown(item.label)}
+    // Only show if there is more than 1 item
+    let navHTML = '';
+    if (navigationItems.length > 1) {
+        navHTML = `
+            <div class="modal-nav-container">
+                <button class="modal-nav-toggle" onclick="toggleModalNav(this)">
+                    <span>目次 (${navigationItems.length})</span>
+                    <span class="chevron">▼</span>
                 </button>
-            `).join('')}
-        </div>
-    `;
+                <div class="modal-nav-content" id="modalNavContent">
+                    <div class="modal-nav">
+                        ${navigationItems.map(item => `
+                            <button class="modal-nav-item" onclick="document.getElementById('${item.id}').scrollIntoView({ behavior: 'smooth' })">
+                                ${parseMarkdown(item.label)}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 
     // Metadados - Caminho do conteúdo
     const metaContainer = document.getElementById('modalMeta');
@@ -565,6 +593,9 @@ function showContent(title) {
     } else {
         metaContainer.innerHTML = '';
     }
+
+    // Save to history
+    saveHistory(title);
 
     // Gera o HTML do conteúdo
     const publicationsHTML = navigationItems.map(pub => {
@@ -581,8 +612,24 @@ function showContent(title) {
     // Apply font size
     applyFontSize();
 
+    // Update Footer Navigation
+    updateModalFooter(title);
+
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
+}
+
+function toggleModalNav(btn) {
+    const content = document.getElementById('modalNavContent');
+    if (content.style.maxHeight) {
+        content.style.maxHeight = null;
+        content.classList.remove('open');
+        btn.classList.remove('active');
+    } else {
+        content.classList.add('open');
+        content.style.maxHeight = content.scrollHeight + "px";
+        btn.classList.add('active');
+    }
 }
 
 function parseMarkdown(text) {
@@ -603,6 +650,9 @@ function parseMarkdown(text) {
 function closeModal() {
     document.getElementById('contentModal').classList.add('hidden');
     document.body.style.overflow = '';
+    // Hide footer when modal closes
+    const footer = document.getElementById('modalNavFooter');
+    if (footer) footer.classList.add('hidden');
 }
 
 // ============================================
@@ -772,10 +822,392 @@ function setupScrollToTop() {
 }
 
 // ============================================
+// MOBILE FOOTER NAVIGATION
+// ============================================
+let currentNavContext = { list: null, index: -1 };
+let footerHideTimeout;
+
+function updateModalFooter(titleData) {
+    const footer = document.getElementById('modalNavFooter');
+    if (!footer) return;
+
+    // Determine context
+    currentNavContext.list = null;
+
+    // Check if in current grouped titles (Theme)
+    if (window.currentGroupedTitles && window.currentGroupedTitles.some(t => t.title === titleData.title)) {
+        currentNavContext.list = window.currentGroupedTitles;
+    }
+    // Check if in search results
+    else if (window.currentSearchResults && window.currentSearchResults.some(r => r.title.title === titleData.title)) {
+        currentNavContext.list = window.currentSearchResults.map(r => r.title);
+    }
+
+    // Find index
+    if (currentNavContext.list) {
+        currentNavContext.index = currentNavContext.list.findIndex(t => t.title === titleData.title);
+    } else {
+        currentNavContext.index = -1;
+    }
+
+    // Update UI
+    const prevBtn = document.getElementById('prevTitleBtn');
+    const nextBtn = document.getElementById('nextTitleBtn');
+
+    if (currentNavContext.index !== -1) {
+        prevBtn.disabled = currentNavContext.index <= 0;
+        nextBtn.disabled = currentNavContext.index >= currentNavContext.list.length - 1;
+    } else {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+    }
+
+    resetFooterHideTimer();
+}
+
+function navigateModal(direction) {
+    if (!currentNavContext.list || currentNavContext.index === -1) return;
+
+    const newIndex = currentNavContext.index + direction;
+    if (newIndex >= 0 && newIndex < currentNavContext.list.length) {
+        // Need to ensure pathInfo preservation if possible, but showContent takes titleData.
+        // The objects in currentGroupedTitles usually have pathInfo if it was set? 
+        // In openContentByIndex we injected it. We should inject it here too if missing.
+        // But simpler: just pass the object from the list. 
+        // Wait, currentGroupedTitles objects don't store the pathInfo permanently unless we modified them in place?
+        // openContentByIndex modified the object in the array? Yes: `titleData = ...; titleData.pathInfo = ...`
+        // So safe to assume it's good.
+
+        // For search results, we constructed a new object in openSearchResultByIndex?
+        // Let's check openSearchResultByIndex. It passed titleWithContext to showContent.
+        // It did NOT modify window.currentSearchResults items.
+        // So navigating via search results might lose pathInfo unless we reconstruct it.
+        // However, if we reuse the logic...
+
+        let nextTitle = currentNavContext.list[newIndex];
+
+        // If coming from search results, nextTitle is just the raw title object from JSON.
+        // We need to re-inject path info if it's missing.
+        if (!nextTitle.pathInfo && window.currentSearchResults) {
+            // Try to find it in search results to get metadata
+            const res = window.currentSearchResults.find(r => r.title.title === nextTitle.title);
+            if (res) {
+                // Reconstruct context
+                // Note: we can't easily call openSearchResultByIndex because it takes index in search list.
+                // But we have the index in the mapped list, which corresponds to search results index.
+                // So we CAN call openSearchResultByIndex if we are in search mode!
+
+                // BUT currentNavContext.list is just a map of titles.
+                // If we are in search mode, we should just use openSearchResultByIndex(newIndex).
+                if (window.currentSearchResults.length === currentNavContext.list.length) {
+                    openSearchResultByIndex(newIndex);
+                    return;
+                }
+            }
+        }
+
+        // Check if we are in Theme mode
+        if (window.currentGroupedTitles && window.currentGroupedTitles.length === currentNavContext.list.length) {
+            openContentByIndex(newIndex);
+            return;
+        }
+
+        // Fallback
+        showContent(nextTitle);
+    }
+}
+
+function resetFooterHideTimer() {
+    const footer = document.getElementById('modalNavFooter');
+    if (!footer) return;
+
+    footer.classList.remove('hidden');
+
+    if (footerHideTimeout) clearTimeout(footerHideTimeout);
+
+    footerHideTimeout = setTimeout(() => {
+        // Only hide if modal is still open
+        if (!document.getElementById('contentModal').classList.contains('hidden')) {
+            footer.classList.add('hidden');
+        }
+    }, 3000);
+}
+
+function setupModalFooter() {
+    const footer = document.getElementById('modalNavFooter');
+    const prevBtn = document.getElementById('prevTitleBtn');
+    const nextBtn = document.getElementById('nextTitleBtn');
+    const closeBtn = document.getElementById('closeModalFooterBtn');
+    const modalBody = document.getElementById('modalBody');
+
+    if (prevBtn) prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigateModal(-1);
+    });
+
+    if (nextBtn) nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigateModal(1);
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeModal();
+    });
+
+    // Auto-hide triggers
+    const reset = () => resetFooterHideTimer();
+
+    if (modalBody) {
+        modalBody.addEventListener('scroll', reset, { passive: true });
+        modalBody.addEventListener('click', reset);
+        modalBody.addEventListener('touchstart', reset, { passive: true });
+    }
+}
+
+// ============================================
 // INITIALIZE ON LOAD
 // ============================================
 document.addEventListener('DOMContentLoaded', () => {
     loadData();
     setupScrollToTop();
+    setupModalFooter();
     document.getElementById('closeAllThemesBtn').addEventListener('click', toggleAllThemes);
+    renderHistory();
 });
+
+// ============================================
+// HISTORY NAVIGATION
+// ============================================
+const HISTORY_KEY = 'shin_college_history';
+const MAX_HISTORY = 50;
+
+function saveHistory(titleData) {
+    if (!titleData || !titleData.title) return;
+
+    let history = [];
+    try {
+        history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    } catch (e) {
+        history = [];
+    }
+
+    // Remove if exists to move to top
+    history = history.filter(item => item.title !== titleData.title);
+
+    // Store
+    history.unshift({
+        title: titleData.title,
+        volume: titleData.pathInfo ? titleData.pathInfo.volume : '',
+        theme: titleData.pathInfo ? titleData.pathInfo.theme : '',
+        data: titleData
+    });
+
+    if (history.length > MAX_HISTORY) history.pop();
+
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+    renderHistory();
+}
+
+function clearHistory() {
+    if (confirm('閲覧履歴を消去してもよろしいですか？')) {
+        localStorage.removeItem(HISTORY_KEY);
+        renderHistory();
+    }
+}
+
+function renderHistory() {
+    const list = document.getElementById('historyList');
+    const container = document.getElementById('historySection');
+    const clearBtn = document.getElementById('clearHistoryBtn');
+
+    if (!list || !container) return;
+
+    let history = [];
+    try {
+        history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    } catch (e) {
+        history = [];
+    }
+
+    if (history.length === 0) {
+        container.classList.add('hidden');
+        if (clearBtn) clearBtn.classList.add('hidden');
+        return;
+    }
+
+    // Show components
+    container.classList.remove('hidden');
+    if (clearBtn) clearBtn.classList.remove('hidden');
+
+    list.innerHTML = history.map((item, index) => `
+        <div class="history-item" onclick="openHistoryItem(${index})">
+            <div class="history-item-title">${item.title}</div>
+            <div class="history-item-path">${item.volume || ''} → ${item.theme || ''}</div>
+        </div>
+    `).join('');
+}
+
+function openHistoryItem(index) {
+    let history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    const item = history[index];
+    if (item && item.data) {
+        showContent(item.data);
+    }
+}
+
+function toggleHistory() {
+    const list = document.getElementById('historyList');
+    const icon = document.getElementById('historyArrow');
+
+    if (list.classList.contains('open')) {
+        list.classList.remove('open');
+        icon.style.transform = 'rotate(0deg)';
+    } else {
+        list.classList.add('open');
+        icon.style.transform = 'rotate(180deg)';
+    }
+}
+
+
+
+function updateModalFooter(titleData) {
+    const footer = document.getElementById('modalNavFooter');
+    if (!footer) return;
+
+    // Determine context
+    currentNavContext.list = null;
+
+    // Check if in current grouped titles (Theme)
+    if (window.currentGroupedTitles && window.currentGroupedTitles.some(t => t.title === titleData.title)) {
+        currentNavContext.list = window.currentGroupedTitles;
+    }
+    // Check if in search results
+    else if (window.currentSearchResults && window.currentSearchResults.some(r => r.title.title === titleData.title)) {
+        currentNavContext.list = window.currentSearchResults.map(r => r.title);
+    }
+    // Context Recovery: If missing, attempt to reconstruct from pathInfo
+    else if (titleData.pathInfo && typeof data !== 'undefined') {
+        const vol = data[titleData.pathInfo.volumeIndex];
+        if (vol && vol.themes[titleData.pathInfo.themeIndex]) {
+            // Reconstruct the title list for this theme
+            currentNavContext.list = vol.themes[titleData.pathInfo.themeIndex].titles;
+        }
+    }
+
+    // Find index
+    if (currentNavContext.list) {
+        // Use loose comparison for safety or fallback to string match
+        currentNavContext.index = currentNavContext.list.findIndex(t => {
+            const tTitle = (t.title || t).toString().trim();
+            const currentTitle = (titleData.title || titleData).toString().trim();
+            // Try strict match first, then loose
+            if (tTitle === currentTitle) return true;
+            // Handle cases where title might differ slightly in structure but be logically same
+            if (t.pathInfo && titleData.pathInfo) {
+                return t.pathInfo.volumeIndex === titleData.pathInfo.volumeIndex &&
+                    t.pathInfo.themeIndex === titleData.pathInfo.themeIndex &&
+                    t.pathInfo.titleIndex === titleData.pathInfo.titleIndex;
+            }
+            return false;
+        });
+    } else {
+        currentNavContext.index = -1;
+    }
+
+    // Update UI
+    const prevBtn = document.getElementById('prevTitleBtn');
+    const nextBtn = document.getElementById('nextTitleBtn');
+
+    if (currentNavContext.index !== -1) {
+        prevBtn.disabled = currentNavContext.index <= 0;
+        nextBtn.disabled = currentNavContext.index >= currentNavContext.list.length - 1;
+    } else {
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+    }
+
+    resetFooterHideTimer();
+}
+
+function navigateModal(direction) {
+    if (!currentNavContext.list || currentNavContext.index === -1) return;
+
+    const newIndex = currentNavContext.index + direction;
+    if (newIndex < 0 || newIndex >= currentNavContext.list.length) return;
+
+    let nextTitle = currentNavContext.list[newIndex];
+
+    // Ensure pathInfo exists by copying from current title if needed
+    if (!nextTitle.pathInfo && currentTitleData && currentTitleData.pathInfo) {
+        // Calculate the new title index if we know the theme structure
+        if (typeof data !== 'undefined') {
+            const vol = data[currentTitleData.pathInfo.volumeIndex];
+            if (vol && vol.themes[currentTitleData.pathInfo.themeIndex]) {
+                const themeList = vol.themes[currentTitleData.pathInfo.themeIndex].titles;
+                const actualIndex = themeList.findIndex(t => (t.title || t) === (nextTitle.title || nextTitle));
+                if (actualIndex !== -1) {
+                    nextTitle = {
+                        ...nextTitle,
+                        pathInfo: {
+                            volume: currentTitleData.pathInfo.volume,
+                            theme: currentTitleData.pathInfo.theme,
+                            volumeIndex: currentTitleData.pathInfo.volumeIndex,
+                            themeIndex: currentTitleData.pathInfo.themeIndex,
+                            titleIndex: actualIndex
+                        }
+                    };
+                }
+            }
+        }
+    }
+
+    // Always use showContent - it handles everything correctly
+    showContent(nextTitle);
+}
+
+function resetFooterHideTimer() {
+    const footer = document.getElementById('modalNavFooter');
+    if (!footer) return;
+
+    footer.classList.remove('hidden');
+
+    if (footerHideTimeout) clearTimeout(footerHideTimeout);
+
+    footerHideTimeout = setTimeout(() => {
+        // Only hide if modal is still open
+        if (!document.getElementById('contentModal').classList.contains('hidden')) {
+            footer.classList.add('hidden');
+        }
+    }, 5000);
+}
+
+function setupModalFooter() {
+    const footer = document.getElementById('modalNavFooter');
+    const prevBtn = document.getElementById('prevTitleBtn');
+    const nextBtn = document.getElementById('nextTitleBtn');
+    const closeBtn = document.getElementById('closeModalFooterBtn');
+
+    if (prevBtn) prevBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigateModal(-1);
+    });
+
+    if (nextBtn) nextBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        navigateModal(1);
+    });
+
+    if (closeBtn) closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeModal();
+    });
+
+    // Auto-hide triggers - Listen globally for better reliability
+    const reset = () => resetFooterHideTimer();
+
+    window.addEventListener('scroll', reset, { passive: true });
+    document.addEventListener('click', reset);
+    document.addEventListener('touchstart', reset, { passive: true });
+    document.addEventListener('mousemove', reset, { passive: true });
+}

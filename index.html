@@ -86,8 +86,28 @@
                     </div>
                     <div class="modal-body" id="modalBody"></div>
                 </div>
+
+                <!-- Mobile Navigation Footer -->
+                <div id="modalNavFooter" class="modal-nav-footer hidden">
+                    <button class="nav-footer-btn" id="prevTitleBtn" title="前のトピック">←</button>
+                    <button class="nav-footer-close" id="closeModalFooterBtn" title="閉じる">×</button>
+                    <button class="nav-footer-btn" id="nextTitleBtn" title="次のトピック">→</button>
+                </div>
             </div>
         </main>
+
+        <!-- History Section -->
+        <div id="historySection" class="history-container hidden">
+            <div class="history-header" onclick="toggleHistory()">
+                <div class="history-title">
+                    <span class="history-icon">🕒</span> 最近見た項目
+                </div>
+                <button id="clearHistoryBtn" class="clear-history-btn"
+                    onclick="event.stopPropagation(); clearHistory()">履歴を消去</button>
+                <span id="historyArrow" class="accordion-icon">▼</span>
+            </div>
+            <div id="historyList" class="history-list"></div>
+        </div>
 
         <!-- Statistics Footer -->
         <footer class="stats-footer" id="statsFooter">
@@ -98,7 +118,7 @@
                 </div>
                 <div class="stat-item">
                     <span class="stat-value" id="totalTitles">0</span>
-                    <span class="stat-label">文献</span>
+                    <span class="stat-label">トピック</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-value" id="totalArticles">0</span>
