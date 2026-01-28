@@ -240,8 +240,8 @@ body {
 
 .card.expanded {
     justify-content: flex-start;
-    height: auto;
-    min-height: auto;
+    height: fit-content;
+    min-height: 0;
 }
 
 .card:hover {
