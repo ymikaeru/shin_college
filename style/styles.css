@@ -778,7 +778,7 @@ body {
 
 /* Separator Item */
 .separator-item {
-    height: 0.0rem;
+    height: 1rem;
     width: 100%;
     margin: var(--spacing-sm) 0;
     pointer-events: none;
