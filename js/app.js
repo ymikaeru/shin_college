@@ -712,6 +712,14 @@ function showContent(title) {
     // Update Footer Navigation
     updateModalFooter(title);
 
+    // Reset scroll position with a slight delay to ensure render completes
+    setTimeout(() => {
+        const modalContent = modal.querySelector('.modal-content');
+        if (modalContent) {
+            modalContent.scrollTop = 0;
+        }
+    }, 10);
+
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
 }
