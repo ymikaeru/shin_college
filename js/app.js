@@ -837,6 +837,10 @@ function navigateToAndHighlight(volumeIndex, themeIndex, titleString) {
     // Navega para a view de temas
     showThemes(volumeIndex);
 
+    // Normalize title to match grouped view (remove trailing numbers)
+    // Matches the logic in groupNumberedTitles
+    const normalizedTarget = titleString.replace(/[　\s]*[0-9０-９１-９]+\s*$/, '').trim();
+
     // Aguarda um momento para a view renderizar
     setTimeout(() => {
         // Expande o card do tema
@@ -859,7 +863,8 @@ function navigateToAndHighlight(volumeIndex, themeIndex, titleString) {
             let targetElement = null;
 
             titleItems.forEach(item => {
-                if (item.textContent === titleString) {
+                // Determine equality based on normalized text
+                if (item.textContent.trim() === normalizedTarget) {
                     targetElement = item.closest('.title-item');
                 }
             });
