@@ -191,11 +191,7 @@ function handleSearch(e) {
     // Aguarda 500ms após o usuário parar de digitar
     searchTimeout = setTimeout(() => {
         const results = searchContent(searchTerm);
-
-        // Se houver resultados, navega para o primeiro
-        if (results.length > 0) {
-            navigateToSearchResult(results[0]);
-        }
+        displaySearchResults(results);
     }, 500);
 }
 
@@ -224,62 +220,7 @@ function searchContent(term) {
     return results;
 }
 
-function navigateToSearchResult(result) {
-    // Encontra os índices do volume e tema
-    const volumeIndex = data.findIndex(v => v.volume === result.volume);
-    const volume = data[volumeIndex];
-    const themeIndex = volume.themes.findIndex(t => t.theme === result.theme);
 
-    // Navega para a view de temas
-    showThemes(volumeIndex);
-
-    // Aguarda um momento para a view renderizar
-    setTimeout(() => {
-        // Expande o card do tema
-        const card = document.getElementById(`theme-card-${themeIndex}`);
-        const container = document.getElementById(`theme-titles-${themeIndex}`);
-        const theme = volume.themes[themeIndex];
-
-        if (card && !card.classList.contains('expanded')) {
-            card.classList.add('expanded');
-            if (container.innerHTML.trim() === '') {
-                renderTitlesInTheme(container, theme.titles);
-            }
-        }
-
-        // Aguarda a renderização dos títulos
-        setTimeout(() => {
-            // Encontra o elemento do título dentro do container
-            const titleItems = container.querySelectorAll('.title-item-name');
-            let targetElement = null;
-
-            titleItems.forEach(item => {
-                if (item.textContent === result.title.title) {
-                    targetElement = item.closest('.title-item');
-                }
-            });
-
-            if (targetElement) {
-                // Scroll suave até o elemento
-                targetElement.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center'
-                });
-
-                // Adiciona classe de highlight
-                targetElement.classList.add('search-highlight');
-
-                // Remove o highlight após 3 segundos
-                setTimeout(() => {
-                    targetElement.classList.remove('search-highlight');
-                }, 3000);
-            }
-
-            // Limpa o input de busca após navegar
-            document.getElementById('searchInput').value = '';
-        }, 300);
-    }, 100);
-}
 
 function displayNoResults() {
     // Cria um overlay temporário com mensagem
