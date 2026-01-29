@@ -714,10 +714,12 @@ function showContent(title) {
 
     // Reset scroll position with a slight delay to ensure render completes
     setTimeout(() => {
+        // Scroll both potential containers to ensure top position
         const modalContent = modal.querySelector('.modal-content');
-        if (modalContent) {
-            modalContent.scrollTop = 0;
-        }
+        if (modalContent) modalContent.scrollTop = 0;
+
+        const scrollableArea = modal.querySelector('.modal-scrollable-area');
+        if (scrollableArea) scrollableArea.scrollTop = 0;
     }, 10);
 
     modal.classList.remove('hidden');

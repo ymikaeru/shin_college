@@ -71,20 +71,24 @@
                     <button class="modal-close" id="closeModal">✕</button>
                     <div class="modal-header">
                         <h3 id="modalTitle"></h3>
-                        <div class="modal-meta" id="modalMeta"></div>
-                        <div class="modal-controls">
-                            <div class="font-size-controls">
-                                <button class="control-button" id="decreaseFontSize"
-                                    title="Diminuir tamanho da fonte">A-</button>
-                                <button class="control-button" id="resetFontSize" title="Tamanho padrão">A</button>
-                                <button class="control-button" id="increaseFontSize"
-                                    title="Aumentar tamanho da fonte">A+</button>
-                            </div>
-                            <button class="control-button translation-button hidden" id="translationButton"
-                                title="Tradução em Português">PT</button>
-                        </div>
                     </div>
-                    <div class="modal-body" id="modalBody"></div>
+                    <div id="modalScrollableArea" class="modal-scrollable-area">
+                        <div class="modal-sub-header">
+                            <div class="modal-meta" id="modalMeta"></div>
+                            <div class="modal-controls">
+                                <div class="font-size-controls">
+                                    <button class="control-button" id="decreaseFontSize"
+                                        title="Diminuir tamanho da fonte">A-</button>
+                                    <button class="control-button" id="resetFontSize" title="Tamanho padrão">A</button>
+                                    <button class="control-button" id="increaseFontSize"
+                                        title="Aumentar tamanho da fonte">A+</button>
+                                </div>
+                                <button class="control-button translation-button hidden" id="translationButton"
+                                    title="Tradução em Português">PT</button>
+                            </div>
+                        </div>
+                        <div class="modal-body" id="modalBody"></div>
+                    </div>
                 </div>
 
                 <!-- Mobile Navigation Footer -->
